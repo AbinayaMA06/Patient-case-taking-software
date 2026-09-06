@@ -5,7 +5,7 @@ import { ToastContainer } from '@/components/ui/Toast'
 
 export function RootLayout() {
   return (
-    <div className="min-h-screen flex flex-col bg-[#FAFAF7] text-slate-800 antialiased">
+    <div className="min-h-screen flex flex-col bg-ayush-warm-bg text-slate-800 antialiased">
       <Header />
       <main className="flex-1 w-full">
         <Outlet />

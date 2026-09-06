@@ -30,7 +30,7 @@ export function KioskLayout() {
   const isTokenPage = location.pathname.includes('/token')
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#FAFAF7] text-slate-800 antialiased select-none">
+    <div className="min-h-screen flex flex-col bg-ayush-warm-bg text-slate-800 antialiased select-none">
       <Header />
 
       {/* Patient Stepper Bar */}

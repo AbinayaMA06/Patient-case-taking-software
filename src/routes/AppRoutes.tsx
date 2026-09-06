@@ -1,6 +1,8 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { RootLayout } from '@/layouts/RootLayout'
 import { KioskLayout } from '@/layouts/KioskLayout'
+import { DoctorLayout } from '@/layouts/DoctorLayout'
+import { AdminLayout } from '@/layouts/AdminLayout'
 import { LandingPage } from '@/pages/LandingPage'
 import { LoginPage } from '@/pages/LoginPage'
 import {
@@ -23,16 +25,20 @@ import { ErrorState } from '@/components/ui/ErrorState'
 export function AppRoutes() {
   return (
     <Routes>
-      {/* Root Layout Pages */}
+      {/* Root Layout Pages (Public Homepage & Role Selection) */}
       <Route element={<RootLayout />}>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
-        
-        {/* Doctor Routes */}
+      </Route>
+
+      {/* Doctor Dashboard Layout Pages */}
+      <Route element={<DoctorLayout />}>
         <Route path="/doctor" element={<DoctorPortal />} />
         <Route path="/doctor/patient/:id" element={<DoctorPatientDetail />} />
-        
-        {/* Admin Route */}
+      </Route>
+
+      {/* Admin Dashboard Layout Pages */}
+      <Route element={<AdminLayout />}>
         <Route path="/admin" element={<AdminPortal />} />
       </Route>
 
@@ -55,7 +61,7 @@ export function AppRoutes() {
       <Route
         path="*"
         element={
-          <div className="min-h-screen flex items-center justify-center p-6 bg-[#FAFAF7]">
+          <div className="min-h-screen flex items-center justify-center p-6 bg-ayush-warm-bg">
             <ErrorState
               title="Page Not Found"
               message="The requested terminal route does not exist. Please return to the MediKiosk homepage."
