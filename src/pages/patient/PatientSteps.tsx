@@ -1,12 +1,10 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  ShieldCheck,
   CheckCircle2,
   ArrowRight,
   ArrowLeft,
   Mic,
-  Languages,
   Upload,
   FileCheck,
   Printer,
@@ -14,13 +12,20 @@ import {
   QrCode,
   Heart,
   Camera,
+  Users,
+  UserPlus,
+  Volume2,
+  VolumeX,
+  AlertCircle,
+  Check,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
 import { useToast } from '@/hooks/useToast'
-import { SUPPORTED_LANGUAGES, MOCK_DETAILED_PATIENT } from '@/data/mockData'
+import { usePatient } from '@/context/PatientContext'
+import { MOCK_DETAILED_PATIENT } from '@/data/mockData'
 
 // Helper for Navigation Footer on Steps
 function StepNav({
@@ -68,285 +73,815 @@ function StepNav({
   )
 }
 
-// 1. Identify Screen
+// 1. Identify Screen (Segment 2: ABHA, New Patient, Caregiver / Proxy)
 export function StepIdentify() {
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const isProxy = searchParams.get('proxy') === 'true'
-  const [idType, setIdType] = useState<'abha' | 'mobile'>('abha')
-  const [identifier, setIdentifier] = useState('91-4829-1029-4820')
-  const [patientName, setPatientName] = useState('Rameshwar Sharma')
-  const [age, setAge] = useState('54')
-  const [gender, setGender] = useState('Male')
+  const isProxyParam = searchParams.get('proxy') === 'true'
   const { toast } = useToast()
+  const {
+    state,
+    setPatientType,
+    setPatientBasicInfo,
+    setAbhaId,
+    verifyMockAbha,
+    setReturningDeltaChoice,
+    setCaregiverRelationship,
+    setCaregiverMode,
+  } = usePatient()
 
-  const handleSimulateAbhaScan = () => {
+  // Local view mode
+  const [activeTab, setActiveTab] = useState<'abha' | 'new' | 'caregiver'>(
+    isProxyParam ? 'caregiver' : state.patientType || 'abha'
+  )
+  const [inputAbha, setInputAbha] = useState(state.abhaDemoId || '91-4829-1029-4820')
+  const [newName, setNewName] = useState(state.patientType === 'new' ? state.patientName : '')
+  const [newAge, setNewAge] = useState(state.age || '32')
+  const [newGender, setNewGender] = useState(state.gender || 'Female')
+
+  const relationshipOptions = [
+    'Parent',
+    'Child',
+    'Spouse',
+    'Relative',
+    'Caregiver',
+    'Other',
+  ]
+
+  const handleSelectTab = (tab: 'abha' | 'new' | 'caregiver') => {
+    setActiveTab(tab)
+    setPatientType(tab)
+    if (tab === 'caregiver') {
+      setCaregiverMode(true)
+    } else {
+      setCaregiverMode(false)
+    }
+  }
+
+  const handleVerifyAbha = () => {
+    verifyMockAbha(inputAbha)
     toast({
-      title: 'ABHA Profile Loaded',
-      message: 'Verified successfully via Ayushman Bharat Digital Mission (ABDM).',
+      title: '👋 Returning Patient Detected',
+      message: 'Found previous clinical record for Lakshmi Devi. Verify details below.',
       type: 'success',
+    })
+  }
+
+  const handleDeltaChoice = (choice: 'unchanged' | 'changed') => {
+    setReturningDeltaChoice(choice)
+    toast({
+      title: choice === 'unchanged' ? 'Delta Mode: No Changes' : 'Delta Mode: Symptoms Updated',
+      message:
+        choice === 'unchanged'
+          ? 'Fast-tracking intake: Previous baseline will be presented for physician review.'
+          : 'Intake will focus on what has changed since 12 August 2026.',
+      type: 'info',
+    })
+    navigate('/patient/consent')
+  }
+
+  const handleCaregiverSwitchForReturning = () => {
+    setActiveTab('caregiver')
+    setCaregiverMode(true)
+    toast({
+      title: 'Caregiver Mode Activated',
+      message: 'Now recording on behalf of patient Lakshmi Devi.',
+      type: 'info',
+    })
+  }
+
+  const handleProceedNewPatient = () => {
+    if (!newName.trim()) {
+      toast({
+        title: 'Please Enter Patient Name',
+        message: 'A patient name is required to initialize the clinical record.',
+        type: 'warning',
+      })
+      return
+    }
+    setPatientBasicInfo(newName.trim(), newAge, newGender)
+    navigate('/patient/consent')
+  }
+
+  const handleProceedCaregiver = () => {
+    if (!state.caregiverRelationship) {
+      setCaregiverRelationship('Caregiver')
+    }
+    if (newName.trim()) {
+      setPatientBasicInfo(newName.trim(), newAge, newGender)
+    }
+    navigate('/patient/consent')
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto w-full space-y-6">
+      <Card variant="default" className="rounded-3xl border-ayush-border/80 shadow-sm">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <Badge variant="ayush">Step 1 of 8 • Patient Identification</Badge>
+            <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+              ABDM Sandbox Prototype
+            </span>
+          </div>
+          <CardTitle className="text-3xl font-extrabold text-slate-900 mt-2">
+            Identify Yourself
+          </CardTitle>
+          <CardDescription className="text-base text-slate-600">
+            Choose your intake method to begin or resume your clinical consultation history.
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent className="space-y-6">
+          {/* Three Option Selection Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <button
+              type="button"
+              onClick={() => handleSelectTab('abha')}
+              className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                activeTab === 'abha'
+                  ? 'bg-ayush-surface border-ayush-primary shadow-xs ring-2 ring-ayush-primary/20'
+                  : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <QrCode className="w-6 h-6 text-emerald-700" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md">
+                  Returning
+                </span>
+              </div>
+              <div>
+                <div className="font-bold text-slate-900 text-sm">1. ABHA ID</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">Quick verify with digital health account</div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSelectTab('new')}
+              className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                activeTab === 'new'
+                  ? 'bg-ayush-surface border-ayush-primary shadow-xs ring-2 ring-ayush-primary/20'
+                  : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <UserPlus className="w-6 h-6 text-sky-700" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-sky-800 bg-sky-100/80 px-2 py-0.5 rounded-md">
+                  First Time
+                </span>
+              </div>
+              <div>
+                <div className="font-bold text-slate-900 text-sm">2. New Patient</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">Create your first clinical profile</div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSelectTab('caregiver')}
+              className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                activeTab === 'caregiver'
+                  ? 'bg-purple-50 border-purple-500 shadow-xs ring-2 ring-purple-500/20'
+                  : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <Users className="w-6 h-6 text-purple-700" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-purple-800 bg-purple-100/80 px-2 py-0.5 rounded-md">
+                  Assisted
+                </span>
+              </div>
+              <div>
+                <div className="font-bold text-slate-900 text-sm">3. Caregiver / Proxy</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">Answering on behalf of a relative</div>
+              </div>
+            </button>
+          </div>
+
+          {/* TAB 1: ABHA ID Flow */}
+          {activeTab === 'abha' && (
+            <div className="space-y-6 animate-in fade-in duration-150">
+              <div className="p-5 bg-white rounded-2xl border border-ayush-border space-y-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-bold text-slate-800">
+                    ABHA ID
+                  </label>
+                  <span className="text-xs text-slate-400">14-digit number or username@abdm</span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center gap-2.5">
+                  <Input
+                    placeholder="Enter ABHA ID (e.g. 91-4829-1029-4820)"
+                    value={inputAbha}
+                    onChange={(e) => {
+                      setInputAbha(e.target.value)
+                      setAbhaId(e.target.value)
+                    }}
+                    kioskSize
+                    className="flex-1 font-mono text-base"
+                    leftIcon={<QrCode className="w-5 h-5 text-ayush-primary" />}
+                  />
+                  <Button
+                    variant="primary"
+                    size="kiosk"
+                    onClick={handleVerifyAbha}
+                    className="w-full sm:w-auto min-w-35 font-bold shrink-0"
+                  >
+                    Verify ABHA
+                  </Button>
+                </div>
+
+                {/* Explicit Prototype Disclaimer as required */}
+                <div className="p-3 bg-amber-50/80 rounded-xl border border-amber-200 text-xs text-amber-800 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Prototype Notice:</strong> This terminal uses mock verification for SIH 2026 demonstration. It is not connected to the live national ABHA production servers.
+                  </span>
+                </div>
+              </div>
+
+              {/* RETURNING PATIENT SCENARIO (Lakshmi Devi) */}
+              {state.isReturningPatient ? (
+                <div className="p-6 bg-ayush-surface rounded-3xl border-2 border-ayush-primary/30 space-y-5 animate-in slide-in-from-top-3 duration-200 shadow-sm">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl">👋</span>
+                        <h3 className="text-xl font-extrabold text-slate-900">
+                          Returning Patient Detected
+                        </h3>
+                      </div>
+                      <p className="text-sm text-slate-600 italic mt-1">
+                        “Welcome back. We found your previous clinical history.”
+                      </p>
+                    </div>
+                    <Badge variant="ayush" size="md">
+                      Record Verified
+                    </Badge>
+                  </div>
+
+                  {/* Previous clinical summary card */}
+                  <div className="p-4 bg-white rounded-2xl border border-ayush-border grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-slate-400 block uppercase font-bold text-[10px]">Patient Name</span>
+                      <span className="font-bold text-slate-900 text-sm">{state.patientName}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block uppercase font-bold text-[10px]">Last Visit</span>
+                      <span className="font-bold text-slate-900 text-sm">{state.previousHistory.lastVisit}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block uppercase font-bold text-[10px]">Previous Concern</span>
+                      <span className="font-semibold text-emerald-800">{state.previousHistory.previousConcern}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block uppercase font-bold text-[10px]">Previous Medication</span>
+                      <span className="font-semibold text-slate-700">{state.previousHistory.previousMedication}</span>
+                    </div>
+                  </div>
+
+                  {/* Delta Mode Inquiry */}
+                  <div className="space-y-3 pt-2">
+                    <h4 className="text-base font-extrabold text-slate-900 text-center sm:text-left">
+                      “Has anything changed since your last visit?”
+                    </h4>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <Button
+                        variant="primary"
+                        size="kiosk"
+                        onClick={() => handleDeltaChoice('unchanged')}
+                        className="w-full text-sm font-bold justify-center"
+                      >
+                        Nothing has changed
+                      </Button>
+
+                      <Button
+                        variant="secondary"
+                        size="kiosk"
+                        onClick={() => handleDeltaChoice('changed')}
+                        className="w-full text-sm font-bold justify-center"
+                      >
+                        Yes, something has changed
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        size="kiosk"
+                        onClick={handleCaregiverSwitchForReturning}
+                        className="w-full text-sm font-bold justify-center text-purple-700 border-purple-300 hover:bg-purple-50"
+                      >
+                        I am a caregiver
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center p-6 bg-white rounded-2xl border border-slate-200 text-slate-500 text-sm space-y-2">
+                  <p>Click <strong>Verify ABHA</strong> above to load the returning patient simulation for Lakshmi Devi.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 2: New Patient Flow */}
+          {activeTab === 'new' && (
+            <div className="p-6 bg-white rounded-3xl border border-ayush-border space-y-5 animate-in fade-in duration-150">
+              <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl text-emerald-900 text-sm font-medium">
+                “Welcome to MediKiosk. Let's create your clinical history.”
+              </div>
+
+              <div className="space-y-4">
+                <Input
+                  label="Full Name"
+                  placeholder="Enter patient full name"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  kioskSize
+                />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Input
+                    label="Age (Years)"
+                    type="number"
+                    value={newAge}
+                    onChange={(e) => setNewAge(e.target.value)}
+                    kioskSize
+                  />
+                  <div className="space-y-1.5">
+                    <label className="block text-base font-semibold text-slate-700">
+                      Gender
+                    </label>
+                    <select
+                      value={newGender}
+                      onChange={(e) => setNewGender(e.target.value)}
+                      className="w-full min-h-[58px] text-base px-4 bg-white border border-slate-300 rounded-2xl focus:border-ayush-primary focus:outline-none"
+                    >
+                      <option value="Female">Female</option>
+                      <option value="Male">Male</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 flex justify-end">
+                <Button
+                  variant="primary"
+                  size="kiosk"
+                  onClick={handleProceedNewPatient}
+                  rightIcon={<ArrowRight className="w-5 h-5" />}
+                  className="w-full sm:w-auto min-w-50"
+                >
+                  Continue to Consent
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: Caregiver / Proxy Flow */}
+          {activeTab === 'caregiver' && (
+            <div className="p-6 bg-white rounded-3xl border border-purple-200 space-y-5 animate-in fade-in duration-150">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Badge variant="neutral" className="bg-purple-100 text-purple-800 border-purple-300">
+                    Caregiver Mode Active
+                  </Badge>
+                  <span className="text-xs font-bold text-purple-700">👥 Reported by caregiver</span>
+                </div>
+                <h3 className="text-2xl font-extrabold text-slate-900 mt-2">
+                  Caregiver Mode
+                </h3>
+                <p className="text-base text-slate-600 font-medium italic">
+                  “Are you answering on behalf of the patient?”
+                </p>
+              </div>
+
+              {/* Relationship Picker */}
+              <div className="space-y-2">
+                <label className="block text-sm font-bold text-slate-700">
+                  Select Your Relationship to Patient
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {relationshipOptions.map((rel) => {
+                    const isSelected = state.caregiverRelationship === rel
+                    return (
+                      <button
+                        key={rel}
+                        type="button"
+                        onClick={() => setCaregiverRelationship(rel)}
+                        className={`py-3 px-4 rounded-xl border text-sm font-bold transition-all flex items-center justify-between ${
+                          isSelected
+                            ? 'bg-purple-700 text-white border-purple-700 shadow-xs'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-purple-50'
+                        }`}
+                      >
+                        <span>{rel}</span>
+                        {isSelected && <Check className="w-4 h-4" />}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Patient details under proxy */}
+              <div className="space-y-4 pt-2 border-t border-slate-100">
+                <Input
+                  label="Patient Name"
+                  placeholder="Enter patient full name"
+                  value={newName || state.patientName}
+                  onChange={(e) => {
+                    setNewName(e.target.value)
+                    setPatientBasicInfo(e.target.value, state.age, state.gender)
+                  }}
+                  kioskSize
+                />
+                <div className="p-3 bg-purple-50 rounded-xl border border-purple-200 text-xs text-purple-900 font-medium">
+                  Notice: Every subsequent caregiver-entered response will be permanently stamped: <strong>👥 Reported by caregiver</strong>
+                </div>
+              </div>
+
+              <div className="pt-4 flex justify-end">
+                <Button
+                  variant="primary"
+                  size="kiosk"
+                  onClick={handleProceedCaregiver}
+                  rightIcon={<ArrowRight className="w-5 h-5" />}
+                  className="w-full sm:w-auto min-w-50 bg-purple-700 hover:bg-purple-800 border-purple-700"
+                >
+                  Continue to Consent
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-between items-center pt-4 text-xs text-slate-400">
+            <span>Terminal: AYUSH-KIOSK-04</span>
+            <button
+              type="button"
+              onClick={() => navigate('/login')}
+              className="text-ayush-primary hover:underline font-semibold"
+            >
+              Switch Portal Role
+            </button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+// 2. Consent Screen (Segment 2: Your Privacy Matters, Audio Listen, Status)
+export function StepConsent() {
+  const navigate = useNavigate()
+  const { toast } = useToast()
+  const { state, setConsent } = usePatient()
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false)
+
+  const handleListenConsent = () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
+      const text =
+        'Your privacy matters at MediKiosk. Point one: Your information will help prepare your clinical history. Point two: You can review and correct information. Point three: AI generated information is only a draft. Point four: A certified physician must verify the information. Point five: Consent can be revoked where applicable.'
+      const utterance = new SpeechSynthesisUtterance(text)
+      utterance.rate = 0.95
+      utterance.onstart = () => setIsPlayingAudio(true)
+      utterance.onend = () => setIsPlayingAudio(false)
+      utterance.onerror = () => setIsPlayingAudio(false)
+      window.speechSynthesis.speak(utterance)
+    } else {
+      setIsPlayingAudio(true)
+      setTimeout(() => setIsPlayingAudio(false), 4000)
+    }
+
+    toast({
+      title: '🔊 Playing Audio Consent',
+      message: 'Reading consent guidelines aloud in your selected language.',
+      type: 'info',
+    })
+  }
+
+  const handleStopAudio = () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
+    }
+    setIsPlayingAudio(false)
+  }
+
+  const handleGiveConsent = () => {
+    setConsent(true)
+    handleStopAudio()
+    toast({
+      title: 'Consent Granted',
+      message: 'Your consent has been recorded. Proceeding to language preference.',
+      type: 'success',
+    })
+    navigate('/patient/language')
+  }
+
+  const handleDecline = () => {
+    setConsent(false)
+    handleStopAudio()
+    toast({
+      title: 'Digital Consent Declined',
+      message:
+        'You may approach the reception counter for non-digital paper-based registration.',
+      type: 'warning',
     })
   }
 
   return (
     <div className="max-w-3xl mx-auto w-full space-y-6">
-      <Card variant="default">
-        <CardHeader>
+      <Card variant="default" className="rounded-3xl border-ayush-border/80 shadow-sm">
+        <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
-            <Badge variant={isProxy ? 'saffron' : 'ayush'}>
-              {isProxy ? 'Proxy / Caregiver Assisted Intake' : 'Step 1 of 10 • Patient Identification'}
+            <Badge variant="ayush">Step 2 of 8 • Patient Consent</Badge>
+            {/* Live Consent Status Indicator as required */}
+            <Badge
+              variant={state.consentGiven ? 'ayush' : 'saffron'}
+              size="md"
+              className={state.consentGiven ? 'bg-emerald-100 text-emerald-800' : ''}
+            >
+              Consent Status: {state.consentGiven ? 'Given' : 'Not Given'}
             </Badge>
-            <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-              ABDM Sandbox
-            </span>
           </div>
-          <CardTitle className="text-2xl mt-2">
-            {isProxy ? 'Caregiver & Patient Identification' : 'Patient Identification'}
+
+          <CardTitle className="text-3xl font-extrabold text-slate-900 mt-2">
+            Your Privacy Matters
           </CardTitle>
-          <CardDescription>
-            Scan your Ayushman Bharat Health Account (ABHA) card or enter your registered mobile number.
+
+          {state.caregiverMode && (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-100 text-purple-800 text-xs font-bold border border-purple-200 mt-1">
+              <Users className="w-3.5 h-3.5" />
+              <span>👥 Reported by caregiver ({state.caregiverRelationship || 'Proxy'})</span>
+            </div>
+          )}
+
+          <CardDescription className="text-base text-slate-600">
+            Please read or listen to the digital health rights and clinical intake consent clauses below.
           </CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {/* Identification method toggle */}
-          <div className="grid grid-cols-2 gap-3 p-1.5 bg-slate-100 rounded-2xl">
-            <button
-              type="button"
-              onClick={() => setIdType('abha')}
-              className={`py-3 rounded-xl font-bold text-sm transition-all ${
-                idType === 'abha'
-                  ? 'bg-white text-ayush-primary shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Scan / Enter ABHA ID
-            </button>
-            <button
-              type="button"
-              onClick={() => setIdType('mobile')}
-              className={`py-3 rounded-xl font-bold text-sm transition-all ${
-                idType === 'mobile'
-                  ? 'bg-white text-ayush-primary shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Mobile OTP Intake
-            </button>
+          {/* Five Explanations Specified */}
+          <div className="bg-ayush-surface/70 p-6 rounded-2xl border border-ayush-border space-y-4 text-sm text-slate-700 leading-relaxed">
+            <div className="flex items-start gap-3">
+              <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                1
+              </div>
+              <p>
+                <strong>Clinical History Preparation:</strong> Your information will help prepare your clinical history for your attending AYUSH physician.
+              </p>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                2
+              </div>
+              <p>
+                <strong>Full Review & Correction:</strong> You can review and correct all information at any stage before generating your OPD pass.
+              </p>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                3
+              </div>
+              <p>
+                <strong>Draft Status:</strong> AI-generated information is only a draft to assist clinical communication and does not prescribe medicine.
+              </p>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                4
+              </div>
+              <p>
+                <strong>Physician Verification:</strong> A certified doctor must verify and sign the information before starting any treatment.
+              </p>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                5
+              </div>
+              <p>
+                <strong>Revocable Rights:</strong> Consent can be revoked where applicable in accordance with ABDM health guidelines.
+              </p>
+            </div>
           </div>
 
-          <div className="space-y-4">
-            <Input
-              label={idType === 'abha' ? 'ABHA Address / 14-digit Number' : 'Mobile Number (Aadhaar-Linked)'}
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-              helperText="Demo mode: Presets loaded from test registry."
-              kioskSize
-              leftIcon={<QrCode className="w-5 h-5" />}
-              rightIcon={
-                <button
-                  type="button"
-                  onClick={handleSimulateAbhaScan}
-                  className="text-xs font-bold text-ayush-primary hover:underline bg-ayush-surface px-2 py-1 rounded-lg border border-ayush-border"
-                >
-                  Simulate QR Scan
-                </button>
-              }
-            />
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Input
-                label="Full Name"
-                value={patientName}
-                onChange={(e) => setPatientName(e.target.value)}
-                kioskSize
-              />
-              <Input
-                label="Age (Years)"
-                value={age}
-                onChange={(e) => setAge(e.target.value)}
-                type="number"
-                kioskSize
-              />
-              <div className="space-y-1.5">
-                <label className="block text-base font-semibold text-slate-700">
-                  Gender
-                </label>
-                <select
-                  value={gender}
-                  onChange={(e) => setGender(e.target.value)}
-                  className="w-full min-h-[58px] text-lg px-4 bg-white border border-slate-300 rounded-2xl focus:border-ayush-primary focus:outline-none"
-                >
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
+          {/* Audio read-aloud button */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-2xl bg-white border border-slate-200">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isPlayingAudio ? 'bg-amber-100 text-amber-700 animate-pulse' : 'bg-ayush-surface text-ayush-primary'}`}>
+                <Volume2 className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-slate-800">
+                  {isPlayingAudio ? 'Reading Consent Aloud...' : 'Need Audio Assistance?'}
+                </div>
+                <div className="text-xs text-slate-500">
+                  Listen to all 5 clauses spoken in clear voice audio.
+                </div>
               </div>
             </div>
 
-            {isProxy && (
-              <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 space-y-1">
-                <span className="font-bold flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-amber-700" />
-                  Proxy Documentation Activated
-                </span>
-                <p>
-                  You are completing this clinical intake on behalf of the patient. The guardian relationship will be appended to the consultation token.
-                </p>
-              </div>
+            {isPlayingAudio ? (
+              <Button
+                variant="outline"
+                size="md"
+                onClick={handleStopAudio}
+                leftIcon={<VolumeX className="w-4 h-4 text-rose-600" />}
+                className="w-full sm:w-auto"
+              >
+                Stop Audio
+              </Button>
+            ) : (
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={handleListenConsent}
+                leftIcon={<Volume2 className="w-4 h-4 text-ayush-primary" />}
+                className="w-full sm:w-auto"
+              >
+                🔊 Listen to Consent
+              </Button>
             )}
           </div>
 
-          <StepNav
-            prevPath="/login"
-            nextPath="/patient/consent"
-            nextLabel="Confirm & Proceed to Consent"
-          />
+          {/* Action Buttons: I Understand & Give Consent / Decline */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-100">
+            <Button
+              variant="outline"
+              size="kiosk"
+              onClick={handleDecline}
+              className="w-full sm:w-auto text-slate-600 hover:text-rose-700"
+            >
+              Decline
+            </Button>
+
+            <Button
+              variant="primary"
+              size="kiosk"
+              onClick={handleGiveConsent}
+              rightIcon={<ArrowRight className="w-5 h-5" />}
+              className="w-full sm:w-auto min-w-60 font-bold"
+            >
+              I Understand & Give Consent
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
   )
 }
 
-// 2. Consent Screen
-export function StepConsent() {
-  const [agreedConsent, setAgreedConsent] = useState(true)
-  const [agreedAyush, setAgreedAyush] = useState(true)
-
-  return (
-    <div className="max-w-3xl mx-auto w-full space-y-6">
-      <Card variant="default">
-        <CardHeader>
-          <Badge variant="ayush">Step 2 of 10 • Patient Consent</Badge>
-          <CardTitle className="text-2xl mt-2">
-            Clinical Consent & Data Sharing Authorization
-          </CardTitle>
-          <CardDescription>
-            In accordance with ABDM standards and clinical guidelines of the Ministry of AYUSH.
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent className="space-y-6">
-          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 text-sm text-slate-700 space-y-3 leading-relaxed max-h-64 overflow-y-auto">
-            <h4 className="font-bold text-slate-900 text-base">
-              Digital Health Records & AI Assistive Intake Agreement
-            </h4>
-            <p>
-              1. <strong>Intake Purpose:</strong> This terminal collects clinical history, symptom duration, previous records, and AYUSH-specific observations (including Prakriti, Jihva, and Nadi parameters) to prepare a pre-consultation summary for your attending doctor.
-            </p>
-            <p>
-              2. <strong>AI Assistance:</strong> The AI system does NOT make final diagnoses or dispense medications. All extracted clinical data is reviewed, verified, and approved by a certified AYUSH physician before treatment begins.
-            </p>
-            <p>
-              3. <strong>ABDM Data Rights:</strong> Your health records are protected under Indian health privacy standards. You retain full control over your ABHA health locker.
-            </p>
-          </div>
-
-          <div className="space-y-4 pt-2">
-            <label className="flex items-start gap-3 p-4 rounded-2xl border border-ayush-border bg-white cursor-pointer hover:bg-ayush-surface/40 transition-colors">
-              <input
-                type="checkbox"
-                checked={agreedConsent}
-                onChange={(e) => setAgreedConsent(e.target.checked)}
-                className="mt-1 w-5 h-5 rounded text-ayush-primary accent-ayush-primary"
-              />
-              <span className="text-sm font-medium text-slate-800">
-                I authorize MediKiosk to capture my clinical complaints and share them securely with the hospital OPD consultation team.
-              </span>
-            </label>
-
-            <label className="flex items-start gap-3 p-4 rounded-2xl border border-ayush-border bg-white cursor-pointer hover:bg-ayush-surface/40 transition-colors">
-              <input
-                type="checkbox"
-                checked={agreedAyush}
-                onChange={(e) => setAgreedAyush(e.target.checked)}
-                className="mt-1 w-5 h-5 rounded text-ayush-primary accent-ayush-primary"
-              />
-              <span className="text-sm font-medium text-slate-800">
-                I agree to preliminary AYUSH assessment indicators (Prakriti, Jihva, and pulse data collection) for physician review.
-              </span>
-            </label>
-          </div>
-
-          <StepNav
-            prevPath="/patient/identify"
-            nextPath="/patient/language"
-            nextLabel="Agree & Select Language"
-          />
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
-
-// 3. Language Screen
+// 3. Language Screen (Segment 2: 7 Indian Languages, 3 Input Modalities)
 export function StepLanguage() {
-  const [selectedLang, setSelectedLang] = useState('hi')
   const { toast } = useToast()
+  const { state, setSelectedLanguage, setInputMode } = usePatient()
 
-  const handleSelect = (code: string, name: string) => {
-    setSelectedLang(code)
+  // 7 Languages specified in prompt
+  const languagesList = [
+    { code: 'en', name: 'English', native: 'English' },
+    { code: 'ta', name: 'Tamil', native: 'தமிழ்' },
+    { code: 'hi', name: 'Hindi', native: 'हिन्दी' },
+    { code: 'te', name: 'Telugu', native: 'తెలుగు' },
+    { code: 'kn', name: 'Kannada', native: 'ಕನ್ನಡ' },
+    { code: 'ml', name: 'Malayalam', native: 'മലയാളം' },
+    { code: 'bn', name: 'Bengali', native: 'বাংলা' },
+  ]
+
+  const inputModes = [
+    {
+      id: 'speak' as const,
+      title: 'Speak',
+      icon: '🎙️',
+      desc: 'Speak naturally in your dialect',
+    },
+    {
+      id: 'type' as const,
+      title: 'Type',
+      icon: '⌨️',
+      desc: 'Type with touchscreen keyboard',
+    },
+    {
+      id: 'tap' as const,
+      title: 'Tap',
+      icon: '👆',
+      desc: 'Tap visual pictorial options',
+    },
+  ]
+
+  const handleSelectLanguage = (langName: string) => {
+    setSelectedLanguage(langName)
     toast({
-      title: `Language set to ${name}`,
-      message: 'The voice engine and screen prompts are now adapted for this dialect.',
+      title: `Language set to ${langName}`,
+      message: 'Onscreen prompts and voice assistant calibrated.',
+      type: 'info',
+    })
+  }
+
+  const handleSelectMode = (mode: 'speak' | 'type' | 'tap') => {
+    setInputMode(mode)
+    toast({
+      title: `Input Mode: ${mode.toUpperCase()}`,
+      message: 'You can switch between modes at any point during intake.',
       type: 'info',
     })
   }
 
   return (
     <div className="max-w-3xl mx-auto w-full space-y-6">
-      <Card variant="default">
-        <CardHeader>
-          <Badge variant="ayush">Step 3 of 10 • Language Preference</Badge>
-          <CardTitle className="text-2xl mt-2">
-            Choose Your Preferred Spoken Dialect
+      <Card variant="default" className="rounded-3xl border-ayush-border/80 shadow-sm">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <Badge variant="ayush">Step 3 of 8 • Language & Input Selection</Badge>
+            {state.caregiverMode && (
+              <span className="text-xs font-bold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-full border border-purple-200">
+                👥 Reported by caregiver
+              </span>
+            )}
+          </div>
+
+          <CardTitle className="text-3xl font-extrabold text-slate-900 mt-2">
+            Choose Your Language
           </CardTitle>
-          <CardDescription>
-            The voice assistant and on-screen prompts will interact in your selected language.
+
+          <CardDescription className="text-base text-slate-600">
+            Select your preferred conversational tongue for questions and voice guidance.
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-8">
+          {/* 7 Touchscreen-Friendly Language Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {SUPPORTED_LANGUAGES.map((lang) => {
-              const isSelected = selectedLang === lang.code
+            {languagesList.map((lang) => {
+              const isSelected = state.selectedLanguage === lang.name
               return (
                 <button
                   key={lang.code}
                   type="button"
-                  onClick={() => handleSelect(lang.code, lang.name)}
-                  className={`p-4 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1.5 ${
+                  onClick={() => handleSelectLanguage(lang.name)}
+                  className={`p-4 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1.5 touch-target-kiosk select-none ${
                     isSelected
-                      ? 'bg-ayush-surface border-ayush-primary shadow-sm ring-2 ring-ayush-primary/20'
+                      ? 'bg-ayush-surface border-ayush-primary shadow-xs ring-2 ring-ayush-primary/20'
                       : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                   }`}
                 >
-                  <span className="text-xl font-bold text-slate-900">
+                  <span className="text-2xl font-black text-slate-900 leading-tight">
                     {lang.native}
                   </span>
                   <span className="text-xs font-semibold text-slate-500">
                     {lang.name}
                   </span>
-                  {lang.popular && (
-                    <span className="text-[10px] uppercase font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                      Popular
-                    </span>
+                  {isSelected && (
+                    <span className="w-2 h-2 rounded-full bg-emerald-600 mt-0.5"></span>
                   )}
                 </button>
               )
             })}
           </div>
 
-          <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 text-xs text-emerald-900 flex items-center gap-3">
-            <Languages className="w-5 h-5 text-emerald-700 shrink-0" />
-            <span>
-              Voice speech recognition (ASR) is calibrated for conversational medical terms in all 12 regional languages.
-            </span>
+          {/* Section: How would you like to answer? */}
+          <div className="space-y-3 pt-4 border-t border-slate-100">
+            <div>
+              <h3 className="text-xl font-extrabold text-slate-900">
+                How would you like to answer?
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                The user can switch between modes later at any step.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {inputModes.map((m) => {
+                const isSelected = state.inputMode === m.id
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => handleSelectMode(m.id)}
+                    className={`p-4 rounded-2xl border text-center transition-all flex flex-col items-center justify-between touch-target-kiosk select-none ${
+                      isSelected
+                        ? 'bg-ayush-surface border-ayush-primary shadow-xs ring-2 ring-ayush-primary/20'
+                        : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className="text-3xl mb-1">{m.icon}</span>
+                    <span className="text-base font-bold text-slate-900">{m.title}</span>
+                    <span className="text-xs text-slate-500 mt-0.5 leading-snug">{m.desc}</span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           <StepNav
             prevPath="/patient/consent"
             nextPath="/patient/history"
-            nextLabel="Proceed to Clinical History"
+            nextLabel="Continue to AI Clinical History"
           />
         </CardContent>
       </Card>
@@ -356,8 +891,11 @@ export function StepLanguage() {
 
 // 4. Clinical History Screen
 export function StepHistory() {
+  const { state } = usePatient()
   const [complaint, setComplaint] = useState(
-    'Bilateral knee joint pain (Janu Sandhigata Vata), worsening in morning stiffness and cold season.'
+    state.isReturningPatient && state.previousHistory
+      ? `Follow-up regarding ${state.previousHistory.previousConcern}. Patient notes progressive improvement with demo medication.`
+      : 'Bilateral knee joint pain (Janu Sandhigata Vata), worsening in morning stiffness and cold season.'
   )
   const [duration, setDuration] = useState('3 months')
   const [isListening, setIsListening] = useState(false)
@@ -368,7 +906,7 @@ export function StepHistory() {
       setIsListening(true)
       toast({
         title: 'Microphone Active',
-        message: 'Listening... Please describe your symptoms naturally in Hindi/English.',
+        message: `Listening... Please describe your symptoms naturally in ${state.selectedLanguage}.`,
         type: 'info',
       })
       setTimeout(() => {
@@ -389,18 +927,44 @@ export function StepHistory() {
       <Card variant="default">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <Badge variant="ayush">Step 4 of 10 • AI Clinical History</Badge>
-            <Badge variant="default">Voice & Touch</Badge>
+            <Badge variant="ayush">Step 4 of 8 • AI Clinical History</Badge>
+            <div className="flex items-center gap-2">
+              {state.caregiverMode && (
+                <span className="text-xs font-bold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-full border border-purple-200">
+                  👥 Reported by caregiver ({state.caregiverRelationship})
+                </span>
+              )}
+              <Badge variant="default">
+                {state.inputMode === 'speak' ? '🎙️ Voice Active' : state.inputMode === 'type' ? '⌨️ Keyboard' : '👆 Touch'}
+              </Badge>
+            </div>
           </div>
           <CardTitle className="text-2xl mt-2">
             What Brings You to the Hospital Today?
           </CardTitle>
           <CardDescription>
-            Speak or type your chief health concerns. The AI will extract clinical details and screen for urgent red flags.
+            {state.caregiverMode
+              ? `Reporting on behalf of ${state.patientName}. Speak or describe current symptoms in ${state.selectedLanguage}.`
+              : `Speak or type your chief health concerns in ${state.selectedLanguage}. The AI will extract clinical details and screen for urgent red flags.`}
           </CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-6">
+          {/* Returning Patient History Banner */}
+          {state.isReturningPatient && state.previousHistory && (
+            <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 text-amber-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <span className="font-bold block text-sm">👋 Returning Patient Context: {state.patientName}</span>
+                <span>
+                  Last Visit: {state.previousHistory.lastVisit} • Previous Concern: {state.previousHistory.previousConcern} • Rx: {state.previousHistory.previousMedication}
+                </span>
+              </div>
+              <Badge variant="saffron" size="sm" className="self-start sm:self-auto shrink-0">
+                Prior Visit Linked
+              </Badge>
+            </div>
+          )}
+
           {/* Voice input button banner */}
           <div className="p-6 rounded-3xl bg-ayush-surface border-2 border-dashed border-ayush-primary/40 flex flex-col items-center text-center space-y-3">
             <button
@@ -417,10 +981,10 @@ export function StepHistory() {
             </button>
             <div>
               <p className="font-bold text-slate-800 text-base">
-                {isListening ? 'Listening to your voice... Speak clearly' : 'Tap Microphone to Speak Symptoms'}
+                {isListening ? `Listening in ${state.selectedLanguage}... Speak clearly` : `Tap Microphone to Speak Symptoms (${state.selectedLanguage})`}
               </p>
               <p className="text-xs text-slate-500 mt-0.5">
-                Supports continuous conversational speech in selected language.
+                Supports continuous conversational speech in {state.selectedLanguage}.
               </p>
             </div>
           </div>
@@ -490,7 +1054,7 @@ export function StepAyush() {
       <Card variant="default">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <Badge variant="ayush">Step 5 of 10 • AYUSH Assessment</Badge>
+            <Badge variant="ayush">Step 5 of 8 • AYUSH Assessment</Badge>
             <Badge variant="saffron">Prakriti & Agni</Badge>
           </div>
           <CardTitle className="text-2xl mt-2">
@@ -587,7 +1151,7 @@ export function StepJihva() {
       <Card variant="default">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <Badge variant="ayush">Step 6 of 10 • Jihva Pariksha</Badge>
+            <Badge variant="ayush">Step 5b • Jihva Pariksha</Badge>
             <Badge variant="saffron">Tongue Examination</Badge>
           </div>
           <CardTitle className="text-2xl mt-2">
@@ -679,7 +1243,7 @@ export function StepNadi() {
       <Card variant="default">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <Badge variant="ayush">Step 7 of 10 • Nadi Assessment</Badge>
+            <Badge variant="ayush">Step 5c • Nadi Assessment</Badge>
             <Badge variant="default">Supplementary Sensor</Badge>
           </div>
           <CardTitle className="text-2xl mt-2">
@@ -767,7 +1331,7 @@ export function StepDocuments() {
       <Card variant="default">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <Badge variant="ayush">Step 8 of 10 • Medical Documents</Badge>
+            <Badge variant="ayush">Step 6 of 8 • Medical Documents</Badge>
             <Badge variant="default">OCR Scanner</Badge>
           </div>
           <CardTitle className="text-2xl mt-2">
@@ -836,6 +1400,7 @@ export function StepDocuments() {
 
 // 9. AI Clinical Summary Review Screen
 export function StepSummary() {
+  const { state } = usePatient()
   const patient = MOCK_DETAILED_PATIENT
 
   return (
@@ -843,8 +1408,15 @@ export function StepSummary() {
       <Card variant="default">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <Badge variant="ayush">Step 9 of 10 • AI Clinical Summary</Badge>
-            <Badge variant="saffron">Traceable Output</Badge>
+            <Badge variant="ayush">Step 7 of 8 • AI Clinical Summary</Badge>
+            <div className="flex items-center gap-2">
+              {state.caregiverMode && (
+                <span className="text-xs font-bold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-full border border-purple-200">
+                  👥 Reported by caregiver ({state.caregiverRelationship})
+                </span>
+              )}
+              <Badge variant="saffron">Traceable Output</Badge>
+            </div>
           </div>
           <CardTitle className="text-2xl mt-2">
             AI-Synthesized Clinical Intake Summary
@@ -856,19 +1428,39 @@ export function StepSummary() {
 
         <CardContent className="space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100 text-sm">
-            <div className="p-4 flex justify-between items-center bg-slate-50 rounded-t-2xl">
+            <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50 rounded-t-2xl">
               <div>
-                <span className="text-xs text-slate-400 font-bold uppercase">Patient Profile</span>
-                <h4 className="font-bold text-slate-900 text-base">{patient.name}</h4>
-                <p className="text-xs text-slate-500">{patient.age} Y / {patient.gender} • ABHA: {patient.abhaId}</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400 font-bold uppercase">Patient Profile</span>
+                  {state.caregiverMode && (
+                    <span className="text-[11px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded border border-purple-200">
+                      👥 Reported by caregiver ({state.caregiverRelationship})
+                    </span>
+                  )}
+                </div>
+                <h4 className="font-bold text-slate-900 text-base">{state.patientName || patient.name}</h4>
+                <p className="text-xs text-slate-500">
+                  {state.age || patient.age} Y / {state.gender || patient.gender} • ABHA: {state.abhaDemoId || patient.abhaId} • Language: {state.selectedLanguage}
+                </p>
               </div>
-              <Badge variant="ayush">{patient.ayushAssessment.prakriti}</Badge>
+              <div className="flex flex-col sm:items-end gap-1">
+                <Badge variant="ayush">{patient.ayushAssessment.prakriti}</Badge>
+                <span className="text-[10px] font-semibold text-emerald-700">
+                  Consent: {state.consentGiven ? 'Granted (Digital)' : 'Not Given'}
+                </span>
+              </div>
             </div>
 
             <div className="p-4 space-y-1">
               <span className="text-xs text-slate-400 font-bold uppercase">Chief Complaints</span>
-              <p className="text-slate-800 font-medium">{patient.history.chiefComplaint}</p>
-              <p className="text-xs text-slate-500">Duration: {patient.history.duration}</p>
+              <p className="text-slate-800 font-medium">
+                {state.isReturningPatient && state.previousHistory
+                  ? `Follow-up regarding ${state.previousHistory.previousConcern}. Patient notes progressive response.`
+                  : patient.history.chiefComplaint}
+              </p>
+              <p className="text-xs text-slate-500">
+                Duration: {state.isReturningPatient ? 'Ongoing follow-up' : patient.history.duration}
+              </p>
             </div>
 
             <div className="p-4 space-y-1">
@@ -910,6 +1502,7 @@ export function StepSummary() {
 export function StepToken() {
   const navigate = useNavigate()
   const { toast } = useToast()
+  const { state } = usePatient()
 
   const handlePrint = () => {
     toast({
@@ -959,10 +1552,29 @@ export function StepToken() {
             </div>
 
             <div className="border-t border-dashed border-slate-300 pt-3 text-xs text-left text-slate-600 space-y-1">
-              <div><strong>Patient:</strong> Rameshwar Sharma (54M)</div>
-              <div><strong>ABHA ID:</strong> 91-4829-1029-4820</div>
-              <div><strong>Chief Complaint:</strong> Janu Sandhigata Vata (Knee pain)</div>
-              <div><strong>Estimated Wait:</strong> ~8 minutes (2 patients ahead)</div>
+              <div>
+                <strong>Patient:</strong> {state.patientName || 'Rameshwar Sharma'} ({state.age || 54}{state.gender ? state.gender.charAt(0) : 'M'})
+              </div>
+              <div>
+                <strong>ABHA ID:</strong> {state.abhaDemoId || '91-4829-1029-4820'}
+              </div>
+              {state.caregiverMode && (
+                <div className="text-purple-700 font-semibold">
+                  <strong>👥 Reported by caregiver:</strong> {state.caregiverRelationship || 'Relative'}
+                </div>
+              )}
+              <div>
+                <strong>Language / Modality:</strong> {state.selectedLanguage} ({state.inputMode.toUpperCase()})
+              </div>
+              <div>
+                <strong>Chief Complaint:</strong>{' '}
+                {state.isReturningPatient && state.previousHistory
+                  ? `Follow-up: ${state.previousHistory.previousConcern}`
+                  : 'Janu Sandhigata Vata (Knee pain)'}
+              </div>
+              <div>
+                <strong>Estimated Wait:</strong> ~8 minutes (2 patients ahead)
+              </div>
             </div>
           </div>
 

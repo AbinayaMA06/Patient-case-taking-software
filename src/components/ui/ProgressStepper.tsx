@@ -4,16 +4,14 @@ import { cn } from '@/utils/cn'
 import type { PatientJourneyStep, StepItem } from '@/types'
 
 export const PATIENT_STEPS: StepItem[] = [
-  { id: 'identify', title: 'Identification', subtitle: 'ABHA / Mobile', path: '/patient/identify' },
-  { id: 'consent', title: 'Consent', subtitle: 'Data & Privacy', path: '/patient/consent' },
-  { id: 'language', title: 'Language', subtitle: 'Preferred Dialect', path: '/patient/language' },
-  { id: 'history', title: 'Clinical History', subtitle: 'AI Voice & Symptoms', path: '/patient/history' },
-  { id: 'ayush', title: 'AYUSH Assessment', subtitle: 'Prakriti & Agni', path: '/patient/ayush' },
-  { id: 'jihva', title: 'Jihva Pariksha', subtitle: 'Tongue Analysis', path: '/patient/jihva' },
-  { id: 'nadi', title: 'Nadi Assessment', subtitle: 'Pulse Dynamics', path: '/patient/nadi' },
-  { id: 'documents', title: 'Documents', subtitle: 'Upload & OCR', path: '/patient/documents' },
-  { id: 'summary', title: 'Review Summary', subtitle: 'Traceable Notes', path: '/patient/summary' },
-  { id: 'token', title: 'Token Slip', subtitle: 'Consultation Pass', path: '/patient/token' },
+  { id: 'identify', title: 'Identify', subtitle: 'ABHA / Mode', path: '/patient/identify' },
+  { id: 'consent', title: 'Consent', subtitle: 'Privacy & Rights', path: '/patient/consent' },
+  { id: 'language', title: 'Language', subtitle: 'Dialect & Mode', path: '/patient/language' },
+  { id: 'history', title: 'History', subtitle: 'Clinical Dialogue', path: '/patient/history' },
+  { id: 'ayush', title: 'AYUSH', subtitle: 'Prakriti & Vitals', path: '/patient/ayush' },
+  { id: 'documents', title: 'Documents', subtitle: 'Medical OCR', path: '/patient/documents' },
+  { id: 'summary', title: 'Summary', subtitle: 'Review Draft', path: '/patient/summary' },
+  { id: 'token', title: 'Token', subtitle: 'Consultation Slip', path: '/patient/token' },
 ]
 
 export interface ProgressStepperProps {
@@ -30,11 +28,24 @@ export function ProgressStepper({
   const location = useLocation()
 
   // Determine current step index from location path or passed prop
-  const activeIndex = PATIENT_STEPS.findIndex((s) =>
-    currentStepId ? s.id === currentStepId : location.pathname.startsWith(s.path)
-  )
+  const getActiveIndex = () => {
+    if (currentStepId) {
+      const idx = PATIENT_STEPS.findIndex((s) => s.id === currentStepId)
+      if (idx !== -1) return idx
+    }
+    const path = location.pathname
+    if (path.startsWith('/patient/identify')) return 0
+    if (path.startsWith('/patient/consent')) return 1
+    if (path.startsWith('/patient/language')) return 2
+    if (path.startsWith('/patient/history')) return 3
+    if (path.startsWith('/patient/ayush') || path.startsWith('/patient/jihva') || path.startsWith('/patient/nadi')) return 4
+    if (path.startsWith('/patient/documents')) return 5
+    if (path.startsWith('/patient/summary')) return 6
+    if (path.startsWith('/patient/token')) return 7
+    return 0
+  }
 
-  const effectiveIndex = activeIndex >= 0 ? activeIndex : 0
+  const effectiveIndex = getActiveIndex()
 
   return (
     <div className={cn('w-full bg-white border-y border-ayush-border/70 py-3 shadow-2xs', className)}>
@@ -60,7 +71,7 @@ export function ProgressStepper({
         </div>
 
         {/* Desktop / Tablet Full Stepper */}
-        <div className="hidden sm:flex items-center gap-1 overflow-x-auto py-1 scrollbar-none">
+        <div className="hidden sm:flex items-center gap-1 overflow-x-auto py-1 scrollbar-none justify-between">
           {PATIENT_STEPS.map((step, idx) => {
             const isCompleted = idx < effectiveIndex
             const isCurrent = idx === effectiveIndex
